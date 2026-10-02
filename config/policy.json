@@ -1,0 +1,65 @@
+{
+  "_comment": "RÀNG BUỘC LÀ DỮ LIỆU: mọi luật của harness nằm ở đây, code chỉ là bộ thông dịch. Sửa file này để đổi hành vi mà không sửa code.",
+
+  "limits": {
+    "max_passengers": 6,
+    "allowed_cabins": ["economy", "business"],
+    "max_stops": 1,
+    "max_days_in_advance": 330,
+    "max_payment_vnd": 200000000,
+    "max_llm_calls": 20,
+    "max_tool_calls": 25,
+    "max_verify_retries": 1,
+    "max_replans": 2,
+    "max_iters_per_step": 6
+  },
+
+  "permissions": {
+    "tool_levels": {
+      "search_flights": "read",
+      "get_flight_details": "read",
+      "get_booking": "read",
+      "hold_booking": "write",
+      "issue_ticket": "write",
+      "process_payment": "payment",
+      "cancel_booking": "destructive",
+      "request_handoff": "read"
+    },
+    "levels": {
+      "read":        {"approval": "never",           "label": "Đọc dữ liệu"},
+      "write":       {"approval": "never",           "label": "Ghi (giữ chỗ / xuất vé)"},
+      "payment":     {"approval": "above_threshold", "label": "Thanh toán"},
+      "destructive": {"approval": "always",          "label": "Huỷ / không hoàn tác"}
+    },
+    "auto_approve_payment_max_vnd": 0
+  },
+
+  "tool_constraints": [
+    {"id": "S1", "tool": "search_flights", "field": "args.origin",        "op": "==", "ref": "request.origin",      "message": "Tìm sai điểm đi so với yêu cầu"},
+    {"id": "S2", "tool": "search_flights", "field": "args.destination",   "op": "==", "ref": "request.destination", "message": "Tìm sai điểm đến so với yêu cầu"},
+    {"id": "S3", "tool": "search_flights", "field": "args.date",          "op": "==", "ref": "request.depart_date", "message": "Tìm sai ngày bay so với yêu cầu"},
+    {"id": "S4", "tool": "search_flights", "field": "args.passengers",    "op": "==", "ref": "request.num_passengers", "message": "Số khách tìm kiếm khác yêu cầu"},
+
+    {"id": "H1", "tool": "hold_booking", "field": "flight.origin",        "op": "==", "ref": "request.origin",        "message": "Chuyến bay không đúng điểm đi"},
+    {"id": "H2", "tool": "hold_booking", "field": "flight.destination",   "op": "==", "ref": "request.destination",   "message": "Chuyến bay không đúng điểm đến"},
+    {"id": "H3", "tool": "hold_booking", "field": "flight.date",          "op": "==", "ref": "request.depart_date",   "message": "Chuyến bay không đúng ngày"},
+    {"id": "H4", "tool": "hold_booking", "field": "args.cabin",           "op": "==", "ref": "request.cabin",         "message": "Hạng ghế khác yêu cầu"},
+    {"id": "H5", "tool": "hold_booking", "field": "args.passengers",      "op": "same_set", "ref": "request.passengers", "message": "Danh sách hành khách khác yêu cầu"},
+    {"id": "H6", "tool": "hold_booking", "field": "computed.total_vnd",   "op": "<=", "ref": "request.budget_vnd",    "message": "Tổng tiền vượt ngân sách"},
+    {"id": "H7", "tool": "hold_booking", "field": "flight.stops",         "op": "<=", "ref": "constraints.max_stops", "message": "Số điểm dừng vượt giới hạn"},
+    {"id": "H8", "tool": "hold_booking", "field": "flight.airline",       "op": "not_in", "ref": "request.avoid_airlines", "message": "Hãng bay nằm trong danh sách tránh"},
+    {"id": "H9", "tool": "hold_booking", "field": "flight.depart_time",   "op": ">=", "ref": "request.earliest_departure", "message": "Giờ cất cánh sớm hơn khung cho phép"},
+    {"id": "H10","tool": "hold_booking", "field": "flight.depart_time",   "op": "<=", "ref": "request.latest_departure",   "message": "Giờ cất cánh muộn hơn khung cho phép"},
+
+    {"id": "P1", "tool": "process_payment", "field": "booking.status",    "op": "==", "value": "HELD",               "message": "Chỉ thanh toán booking đang giữ chỗ"},
+    {"id": "P2", "tool": "process_payment", "field": "args.amount_vnd",   "op": "==", "ref": "booking.total_vnd",     "message": "Số tiền thanh toán không khớp tổng booking"},
+    {"id": "P3", "tool": "process_payment", "field": "args.amount_vnd",   "op": "<=", "ref": "request.budget_vnd",    "message": "Thanh toán vượt ngân sách"},
+    {"id": "P4", "tool": "process_payment", "field": "args.amount_vnd",   "op": "<=", "ref": "policy.limits.max_payment_vnd", "message": "Vượt hạn mức 1 giao dịch"},
+    {"id": "P5", "tool": "process_payment", "field": "args.booking_id",   "op": "in", "ref": "session.booking_ids",   "message": "Booking không thuộc phiên này"},
+
+    {"id": "T1", "tool": "issue_ticket",    "field": "booking.status",    "op": "==", "value": "PAID",               "message": "Chưa thanh toán thì không được xuất vé"},
+    {"id": "T2", "tool": "issue_ticket",    "field": "args.booking_id",   "op": "in", "ref": "session.booking_ids",   "message": "Booking không thuộc phiên này"},
+
+    {"id": "X1", "tool": "cancel_booking",  "field": "args.booking_id",   "op": "in", "ref": "session.booking_ids",   "message": "Chỉ được huỷ booking do phiên này tạo"}
+  ]
+}

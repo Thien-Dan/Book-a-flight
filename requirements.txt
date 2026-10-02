@@ -1,0 +1,7 @@
+langchain>=1.0
+langchain-core>=1.0
+langgraph>=1.0
+langchain-deepseek>=1.0
+python-dotenv
+streamlit>=1.40
+pandas
